@@ -305,7 +305,7 @@ def detection_bullish_counterattack(data):
     
     body_N = data['close_N'] - data['open_N']
     body_N_1 = data['close_N-1'] - data['open_N-1']
-    
+ 
 
     # Базовое условие для просвета в облаках
     base_condition = (
