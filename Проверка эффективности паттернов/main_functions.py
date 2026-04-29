@@ -120,6 +120,52 @@ def shift_features_2_candle(data):
     data_c.dropna(inplace=True)
     return data_c
 
+# Размечаем датафрейм паттерном пинцет
+def detection_tweezer_pattern(data):
+    """Функция для детекции паттерна пинцет (бычий разворотный)
+
+    Args:
+        data (pd.DataFrame): Исходный DataFrame с рыночными данными, содержащий столбцы:
+            ['ticker', 'per', 'open_N', 'open_N-1', 'close_N', 'close_N-1', 
+             'low_N', 'low_N-1', 'high_N', 'high_N-1', 'volume_N', 'volume_N-1', 
+             'time_N', 'time_N-1']
+
+
+    Returns:
+        data (pd.DataFrame): Исходный DataFrame вместе с дополнительными 3 столбцами:
+            - pattern : 1 - 2 свечи наблюдения образуют паттерн, 0 - паттерна нет.
+            - signal : 1 - на предыдущей свече был паттерн, 0 - паттерна не было
+            - strategy : Название стратегии - 'tweezer'
+    """
+    
+    data = data.copy()
+    data['pattern'] = 0
+    data['signal'] = 0
+    data['strategy'] = 'tweezer'
+    
+    # Векторизованные вычисления
+    low_N = data['low_N']
+    low_N_1 = data['low_N-1']
+    close_N = data['close_N']
+    close_N_1 = data['close_N-1']
+    open_N = data['open_N']
+    open_N_1 = data['open_N-1']
+    
+    body_N = close_N - open_N
+    body_N_1 = close_N_1 - open_N_1
+    
+    # Базовое условие пинцета
+    base_condition = (
+        (body_N_1 < 0) &                       
+        (body_N > 0) &                           
+        (np.abs(low_N - low_N_1) <= 0.001 * low_N)  # минимумы совпадают
+    )
+    
+    pattern_mask = base_condition
+    data.loc[pattern_mask, 'pattern'] = 1
+    data.loc[pattern_mask.shift(1).fillna(False), 'signal'] = 1
+    
+    return data
 
 
 
@@ -311,7 +357,7 @@ def detection_bullish_counterattack(data):
     base_condition = (
         (body_N_1 < 0) & 
         (body_N > 0) &
-        ((np.abs(close_N_1 - close_N) / close_N) * 100 <= 0.05))
+        ((np.abs(close_N_1 - close_N) / close_N_1) <= 0.05))
     
     # Отмечаем 2 свечи паттерна
     pattern_mask = base_condition
@@ -365,12 +411,12 @@ def filter_min_distance(data, column, N):
 
 
 # Готовим данные для дальнейшей проверки
-def data_prepare_for_statistics(data, commission=0.0002):
+def data_prepare_for_statistics(data, commission=0.00085):
     """Функция предназначена для обработки результатов стратегий.
 
     Args:
         data (pd.DataFrame): на вход подается размеченный датафрейм с колонкой 'signal'
-        commission (float, optional): Размер комисии в долях процента (0.0002 ~ 0.02%). Defaults to 0.0002.
+        commission (float, optional): Размер комисии в долях процента (0.00085 ~ 0.085%). Defaults to 0.00085.
 
     Returns:
         list: Возвращаем список с датафреймами, каждый датафрейм это данные по каждой сделке (дата и размер прибыли в %)
@@ -469,7 +515,7 @@ def trade_statistics_bull(all_strategy_data):
         # Максимальная просадка
         cumsum_profit = np.cumsum(pr_per_net)
         cummax_profit = np.maximum.accumulate(cumsum_profit)
-        max_drawdown = np.max(cummax_profit - cumsum_profit)
+        max_drawdown = np.max(cummax_profit - np.abs(cumsum_profit))
         
         strategies.append({
           'ticker' : ticker,
