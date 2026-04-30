@@ -158,7 +158,7 @@ def detection_tweezer_pattern(data):
     base_condition = (
         (body_N_1 < 0) &                       
         (body_N > 0) &                           
-        (np.abs(low_N - low_N_1) <= 0.001 * low_N)  # минимумы совпадают
+        (np.abs(low_N - low_N_1) / low_N <= 0.05 )  # минимумы совпадают
     )
     
     pattern_mask = base_condition
